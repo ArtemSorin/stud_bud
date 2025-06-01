@@ -20,10 +20,13 @@ class Post {
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
+    const String baseUrl = 'http://localhost:5000';
+
     return Post(
       id: json['post_id'] ?? 0,
       content: json['content'] ?? '',
-      imageUrl: json['image_url'],
+      imageUrl:
+          json['image_url'] != null ? '$baseUrl${json['image_url']}' : null,
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),

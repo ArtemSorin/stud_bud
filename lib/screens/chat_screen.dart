@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:stud_bud/services/auth_service.dart';
+import 'package:stud_bud/services/chat_service.dart';
 import '../models/message_model.dart';
 import '../services/message_service.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class ChatScreen extends StatefulWidget {
+  final int userId;
   final int chatId;
   final String chatUsername;
   final String? chatAvatar;
 
   const ChatScreen({
     super.key,
+    required this.userId,
     required this.chatId,
     required this.chatUsername,
     this.chatAvatar,
@@ -22,26 +27,70 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   late Future<List<Message>> _messagesFuture;
+  late IO.Socket socket;
 
-  void _loadMessages() {
-    setState(() {
-      _messagesFuture = MessageService.fetchMessages(widget.chatId);
+  void _initSocket() {
+    socket = IO.io('http://localhost:5000', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
     });
+
+    socket.connect();
+
+    socket.onConnect((_) {
+      print('Подключено к сокету');
+      socket.emit('joinChat', widget.chatId);
+    });
+
+    socket.on('newMessage', (data) {
+      final msg = Message.fromJson(data, widget.userId);
+      setState(() {
+        _messagesFutureData.add(msg);
+        _messagesFuture = Future.value(List.from(_messagesFutureData));
+      });
+    });
+
+    socket.onDisconnect((_) => print('Отключено от сокета'));
   }
+
+  List<Message> _messagesFutureData = [];
 
   @override
   void initState() {
     super.initState();
+    _messagesFuture = ChatService.fetchMessages(widget.chatId);
     _loadMessages();
+    _initSocket();
+  }
+
+  Future<void> _loadMessages() async {
+    final messages = await MessageService.fetchMessages(widget.chatId);
+    _messagesFutureData = messages;
+    setState(() {
+      _messagesFuture = Future.value(messages);
+    });
   }
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    await MessageService.sendMessage(widget.chatId, text);
+    final userId = await AuthService.getUserId();
+
+    socket.emit('sendMessage', {
+      'chatId': widget.chatId,
+      'userId': userId,
+      'text': text,
+    });
+
+    @override
+    void dispose() {
+      socket.disconnect();
+      socket.dispose();
+      super.dispose();
+    }
+
     _controller.clear();
-    _loadMessages();
   }
 
   String formatDate(DateTime date) {

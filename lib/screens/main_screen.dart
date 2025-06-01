@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:stud_bud/screens/chat_list_screen.dart';
+import 'package:stud_bud/screens/create_post_screen.dart';
 import 'package:stud_bud/screens/feed_screen.dart';
 import 'package:stud_bud/screens/settings_screen.dart';
 import 'package:stud_bud/screens/user_profile_screen.dart';
@@ -28,22 +29,17 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  void _addStory() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Добавить историю'),
-          content: const Text('Здесь будет логика добавления истории.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Закрыть'),
-            ),
-          ],
-        );
-      },
+  void _addPost() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreatePostScreen()),
     );
+
+    if (result == true && _currentIndex == 0 && _screens[0] is FeedScreen) {
+      setState(() {
+        _screens[0] = FeedScreen();
+      });
+    }
   }
 
   @override
@@ -88,14 +84,14 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: () => _onTabTapped(2),
             ),
             IconButton(
-              icon: const Icon(Icons.group, color: Colors.black),
+              icon: const Icon(Icons.settings, color: Colors.black),
               onPressed: () => _onTabTapped(3),
             ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addStory,
+        onPressed: _addPost,
         backgroundColor: Colors.black,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white),

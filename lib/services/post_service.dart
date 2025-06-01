@@ -36,4 +36,19 @@ class PostService {
       throw Exception('Ошибка при лайке');
     }
   }
+
+  static Future<Post> fetchPostById(int postId) async {
+    final token = await AuthService.getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/$postId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    print('fetchPostById status: ${response.statusCode}');
+    print('fetchPostById body: ${response.body}');
+    if (response.statusCode == 200) {
+      return Post.fromJson(json.decode(response.body));
+    } else {
+      throw Exception('Ошибка загрузки поста');
+    }
+  }
 }

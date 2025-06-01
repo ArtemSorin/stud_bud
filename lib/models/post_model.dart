@@ -7,6 +7,7 @@ class Post {
   final String? authorPicture;
   int likesCount;
   bool likedByCurrentUser;
+  int commentsCount;
 
   Post({
     required this.id,
@@ -17,6 +18,7 @@ class Post {
     this.authorPicture,
     required this.likesCount,
     required this.likedByCurrentUser,
+    required this.commentsCount,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class Post {
       authorPicture: json['author_picture_url'],
       likesCount: json['likes_count'] ?? 0,
       likedByCurrentUser: json['liked_by_current_user'] ?? false,
+      commentsCount: json['commentsCount'] ?? 0,
     );
   }
 }

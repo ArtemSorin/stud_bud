@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:stud_bud/screens/chat_list_screen.dart';
+import 'package:stud_bud/screens/settings_screen.dart';
+import 'package:stud_bud/screens/user_profile_screen.dart';
 
 import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
@@ -146,9 +149,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = [
     FeedScreen(),
-    Center(child: Text('Чаты')), // Пока-заглушка
-    Center(child: Text('Профиль')), // Пока-заглушка
-    Center(child: Text('Настройки')), // Пока-заглушка
+    ChatListScreen(),
+    ProfilePage(),
+    SettingsPage(),
   ];
 
   void _onTap(int index) {

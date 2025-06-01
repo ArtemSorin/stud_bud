@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:stud_bud/models/post_model.dart';
+import 'package:stud_bud/services/post_service.dart';
 import 'package:stud_bud/services/profile_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -35,46 +38,58 @@ class _ProfilePageState extends State<ProfilePage> {
           final interests = List<String>.from(
             data['Interests'].map((i) => i['name']),
           );
-          final posts = List<Map<String, dynamic>>.from(data['Posts']);
+          final posts =
+              List<Map<String, dynamic>>.from(
+                  data['Posts'],
+                ).map((postJson) => Post.fromJson(postJson)).toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: NetworkImage(
-                    data['avatar_url'] ?? 'https://via.placeholder.com/150',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '${data['first_name']} ${data['last_name']}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  data['location'] ?? 'No location',
-                  style: const TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildProfileDetail(
-                      'Age',
-                      _calculateAge(data['birth_date']).toString(),
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {
+                _profileFuture = ProfileService.fetchUserProfile();
+              });
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundImage: NetworkImage(
+                      data['avatar_url'] ?? 'https://via.placeholder.com/150',
                     ),
-                    _buildProfileDetail('Gender', data['gender'] ?? '-'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildInterestChips(interests),
-                const Divider(),
-                ...posts.map((post) => _buildPost(post)),
-              ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${data['first_name']} ${data['last_name']}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    data['location'] ?? 'No location',
+                    style: const TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildProfileDetail(
+                        'Age',
+                        _calculateAge(data['birth_date']).toString(),
+                      ),
+                      _buildProfileDetail('Gender', data['gender'] ?? '-'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildInterestChips(interests),
+                  const Divider(thickness: 1),
+                  ...posts.map(_buildPostCard),
+                ],
+              ),
             ),
           );
         },
@@ -111,32 +126,51 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPost(Map<String, dynamic> post) {
-    final List images = post['images'] ?? [];
+  void _handleLike(Post post) async {
+    final response = await PostService.toggleLike(post.id);
+    setState(() {
+      post.likedByCurrentUser = !post.likedByCurrentUser;
+      post.likesCount = response['likesCount'];
+    });
+  }
 
+  Widget _buildPostCard(Post post) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(post['content'], style: const TextStyle(fontSize: 16)),
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DateFormat.yMMMMd().add_Hm().format(post.createdAt),
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          if (images.isNotEmpty)
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              children:
-                  images
-                      .map<Widget>(
-                        (url) => ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0),
-                          child: Image.network(url, fit: BoxFit.cover),
-                        ),
-                      )
-                      .toList(),
+          Text(post.content, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 10),
+          if (post.imageUrl != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.network(
+                post.imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Colors.grey[300],
+                    alignment: Alignment.center,
+                    child: const Text('Ошибка загрузки изображения'),
+                  );
+                },
+              ),
             ),
           const SizedBox(height: 10),
           Row(
@@ -144,20 +178,31 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.favorite),
-                  const SizedBox(width: 5),
-                  Text('${post['likes_count'] ?? 0}'),
+                  IconButton(
+                    icon: Icon(
+                      post.likedByCurrentUser
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color:
+                          post.likedByCurrentUser ? Colors.red : Colors.black,
+                    ),
+                    onPressed: () => _handleLike(post),
+                  ),
+                  Text('${post.likesCount}'),
                 ],
               ),
               Row(
                 children: [
-                  const Icon(Icons.comment),
-                  const SizedBox(width: 5),
-                  Text('${post['comments_count'] ?? 0}'),
+                  IconButton(
+                    icon: const Icon(Icons.comment, color: Colors.black),
+                    onPressed: () {},
+                  ),
+                  const Text("0"),
                 ],
               ),
             ],
           ),
+          const Divider(),
         ],
       ),
     );

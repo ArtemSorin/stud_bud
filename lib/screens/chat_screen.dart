@@ -38,7 +38,6 @@ class _ChatScreenState extends State<ChatScreen> {
     socket.connect();
 
     socket.onConnect((_) {
-      print('Подключено к сокету');
       socket.emit('joinChat', widget.chatId);
     });
 
@@ -49,8 +48,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _messagesFuture = Future.value(List.from(_messagesFutureData));
       });
     });
-
-    socket.onDisconnect((_) => print('Отключено от сокета'));
   }
 
   List<Message> _messagesFutureData = [];

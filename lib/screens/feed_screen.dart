@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:stud_bud/screens/comments_screen.dart';
 
 import '../models/post_model.dart';
 import '../services/post_service.dart';
@@ -109,7 +110,14 @@ class _FeedScreenState extends State<FeedScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.comment, color: Colors.black),
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CommentsScreen(postId: post.id),
+                        ),
+                      );
+                    },
                   ),
                   const Text("0"),
                 ],

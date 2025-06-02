@@ -33,7 +33,10 @@ class Post {
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
       author: json['author'] ?? 'Неизвестный',
-      authorPicture: json['author_picture_url'],
+      authorPicture:
+          json['author_picture_url'] != null
+              ? '$baseUrl${json['author_picture_url']}'
+              : null,
       likesCount: json['likes_count'] ?? 0,
       likedByCurrentUser: json['liked_by_current_user'] ?? false,
       commentsCount: json['commentsCount'] ?? 0,

@@ -14,10 +14,51 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<Map<String, dynamic>> _profileFuture;
 
+  Map<String, dynamic>? _profileData;
+  List<Post> _posts = [];
+
   @override
   void initState() {
     super.initState();
-    _profileFuture = ProfileService.fetchUserProfile();
+    _loadProfile();
+  }
+
+  void _loadProfile() {
+    _profileFuture = ProfileService.fetchUserProfile().then((data) {
+      _profileData = data;
+      _posts =
+          List<Map<String, dynamic>>.from(
+              data['Posts'],
+            ).map((postJson) => Post.fromJson(postJson)).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return data;
+    });
+  }
+
+  Future<void> _refreshProfile() async {
+    final data = await ProfileService.fetchUserProfile();
+    setState(() {
+      _profileData = data;
+      _posts =
+          List<Map<String, dynamic>>.from(
+              data['Posts'],
+            ).map((postJson) => Post.fromJson(postJson)).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      // Обновляем Future, чтобы FutureBuilder сработал
+      _profileFuture = Future.value(_profileData);
+    });
+  }
+
+  void _handleLike(Post post) async {
+    final response = await PostService.toggleLike(post.id);
+    setState(() {
+      // Обновляем состояние конкретного поста локально
+      final index = _posts.indexWhere((p) => p.id == post.id);
+      if (index != -1) {
+        _posts[index].likedByCurrentUser = !post.likedByCurrentUser;
+        _posts[index].likesCount = response['likesCount'];
+      }
+    });
   }
 
   @override
@@ -34,22 +75,13 @@ class _ProfilePageState extends State<ProfilePage> {
             return Center(child: Text('Ошибка: ${snapshot.error}'));
           }
 
-          final data = snapshot.data!;
+          final data = _profileData!;
           final interests = List<String>.from(
             data['Interests'].map((i) => i['name']),
           );
-          final posts =
-              List<Map<String, dynamic>>.from(
-                  data['Posts'],
-                ).map((postJson) => Post.fromJson(postJson)).toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           return RefreshIndicator(
-            onRefresh: () async {
-              setState(() {
-                _profileFuture = ProfileService.fetchUserProfile();
-              });
-            },
+            onRefresh: _refreshProfile,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -57,10 +89,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 40),
                   CircleAvatar(
                     radius: 60,
-                    backgroundImage: NetworkImage(
-                      data['avatar_url'] ?? 'https://via.placeholder.com/150',
-                    ),
+                    backgroundImage:
+                        data['profile_picture_url'] != null &&
+                                data['profile_picture_url'].isNotEmpty
+                            ? NetworkImage(
+                              'http://localhost:5000${data['profile_picture_url']}',
+                            )
+                            : const NetworkImage(
+                              'https://via.placeholder.com/150',
+                            ),
                   ),
+
                   const SizedBox(height: 16),
                   Text(
                     '${data['first_name']} ${data['last_name']}',
@@ -70,7 +109,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   Text(
-                    data['location'] ?? 'No location',
+                    data['location'] ?? 'Локация не указана',
                     style: const TextStyle(fontSize: 18, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
@@ -87,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 16),
                   _buildInterestChips(interests),
                   const Divider(thickness: 1),
-                  ...posts.map(_buildPostCard),
+                  ..._posts.map(_buildPostCard),
                 ],
               ),
             ),
@@ -126,14 +165,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _handleLike(Post post) async {
-    final response = await PostService.toggleLike(post.id);
-    setState(() {
-      post.likedByCurrentUser = !post.likedByCurrentUser;
-      post.likesCount = response['likesCount'];
-    });
-  }
-
   Widget _buildPostCard(Post post) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
@@ -142,14 +173,9 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    DateFormat.yMMMMd().add_Hm().format(post.createdAt),
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
+              Text(
+                DateFormat.yMMMMd().add_Hm().format(post.createdAt),
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ],
           ),

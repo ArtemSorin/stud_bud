@@ -16,6 +16,7 @@ class ProfileService {
         'Content-Type': 'application/json',
       },
     );
+    print(response.body); // временно добавь
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

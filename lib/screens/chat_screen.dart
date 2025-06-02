@@ -26,8 +26,17 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
-  late Future<List<Message>> _messagesFuture;
   late IO.Socket socket;
+  List<Message> _messagesFutureData = [];
+  bool _loading = true;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+    _initSocket();
+  }
 
   void _initSocket() {
     socket = IO.io('http://localhost:5000', <String, dynamic>{
@@ -45,27 +54,32 @@ class _ChatScreenState extends State<ChatScreen> {
       final msg = Message.fromJson(data, widget.userId);
       setState(() {
         _messagesFutureData.add(msg);
-        _messagesFuture = Future.value(List.from(_messagesFutureData));
       });
     });
-  }
 
-  List<Message> _messagesFutureData = [];
+    socket.onDisconnect((_) {
+      print('Socket disconnected');
+    });
 
-  @override
-  void initState() {
-    super.initState();
-    _messagesFuture = ChatService.fetchMessages(widget.chatId);
-    _loadMessages();
-    _initSocket();
+    socket.onError((error) {
+      print('Socket error: $error');
+    });
   }
 
   Future<void> _loadMessages() async {
-    final messages = await MessageService.fetchMessages(widget.chatId);
-    _messagesFutureData = messages;
-    setState(() {
-      _messagesFuture = Future.value(messages);
-    });
+    try {
+      final messages = await MessageService.fetchMessages(widget.chatId);
+      setState(() {
+        _messagesFutureData = messages;
+        _loading = false;
+        _error = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -80,14 +94,15 @@ class _ChatScreenState extends State<ChatScreen> {
       'text': text,
     });
 
-    @override
-    void dispose() {
-      socket.disconnect();
-      socket.dispose();
-      super.dispose();
-    }
-
     _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    socket.disconnect();
+    socket.dispose();
+    _controller.dispose();
+    super.dispose();
   }
 
   String formatDate(DateTime date) {
@@ -96,6 +111,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String formatTime(DateTime dateTime) {
     return DateFormat('HH:mm').format(dateTime);
+  }
+
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   @override
@@ -114,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? Text(widget.chatUsername[0])
                       : null,
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Text(widget.chatUsername),
           ],
         ),
@@ -122,101 +141,109 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FutureBuilder<List<Message>>(
-              future: _messagesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Ошибка загрузки сообщений'));
-                }
+            child:
+                _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error
+                    ? const Center(child: Text('Ошибка загрузки сообщений'))
+                    : _messagesFutureData.isEmpty
+                    ? const Center(child: Text('Нет сообщений'))
+                    : ListView.builder(
+                      reverse: true,
+                      itemCount: _messagesFutureData.length,
+                      itemBuilder: (context, index) {
+                        final message =
+                            _messagesFutureData[_messagesFutureData.length -
+                                index -
+                                1];
+                        final isMe = message.isMine;
 
-                final messages = snapshot.data!;
-                return ListView.builder(
-                  reverse: true,
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[messages.length - index - 1];
-                    final isMe = message.isMine;
+                        DateTime sentAt = message.sentAt;
+                        bool showDateSeparator = false;
 
-                    DateTime sentAt = message.sentAt;
-                    bool showDateSeparator = false;
+                        if (index == _messagesFutureData.length - 1) {
+                          showDateSeparator = true;
+                        } else {
+                          final prevMessage =
+                              _messagesFutureData[_messagesFutureData.length -
+                                  index -
+                                  2];
+                          if (!isSameDay(sentAt, prevMessage.sentAt)) {
+                            showDateSeparator = true;
+                          }
+                        }
 
-                    if (index == messages.length - 1) {
-                      showDateSeparator = true;
-                    } else {
-                      final prevMessage = messages[messages.length - index - 2];
-                      if (!isSameDay(sentAt, prevMessage.sentAt)) {
-                        showDateSeparator = true;
-                      }
-                    }
-
-                    return Column(
-                      children: [
-                        if (showDateSeparator)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10.0),
-                            child: Row(
-                              children: <Widget>[
-                                Expanded(child: Divider()),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8.0,
-                                  ),
-                                  child: Text(
-                                    formatDate(sentAt),
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
+                        return Column(
+                          children: [
+                            if (showDateSeparator)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10.0,
                                 ),
-                                Expanded(child: Divider()),
-                              ],
-                            ),
-                          ),
-                        Align(
-                          alignment:
-                              isMe
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                          child: Container(
-                            margin: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isMe ? Colors.blue[200] : Colors.grey[300],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  message.text,
-                                  style: TextStyle(fontSize: 16),
+                                child: Row(
+                                  children: <Widget>[
+                                    const Expanded(child: Divider()),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0,
+                                      ),
+                                      child: Text(
+                                        formatDate(sentAt),
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(child: Divider()),
+                                  ],
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  formatTime(sentAt),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                  ),
+                              ),
+                            Align(
+                              alignment:
+                                  isMe
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
                                 ),
-                              ],
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isMe ? Colors.black : Colors.grey[300],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      message.text,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      formatTime(sentAt),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
+                          ],
+                        );
+                      },
+                    ),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
@@ -224,21 +251,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Введите сообщение...',
                     ),
                   ),
                 ),
-                IconButton(icon: Icon(Icons.send), onPressed: _sendMessage),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _sendMessage,
+                ),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  bool isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }

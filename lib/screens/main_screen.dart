@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:stud_bud/screens/announcements_screen.dart';
 import 'package:stud_bud/screens/chat_list_screen.dart';
 import 'package:stud_bud/screens/create_post_screen.dart';
 import 'package:stud_bud/screens/feed_screen.dart';
@@ -54,7 +55,15 @@ class _MainScreenState extends State<MainScreen> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
-          const Icon(Icons.notifications, color: Colors.black),
+          IconButton(
+            icon: Icon(Icons.search, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => AnnouncementsScreen()),
+              );
+            },
+          ),
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.door_front_door, color: Colors.black),

@@ -65,14 +65,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     final response = await request.send();
-    final responseBody = await response.stream.bytesToString(); // <- добавляем
+    final responseBody = await response.stream.bytesToString();
 
     setState(() => _isLoading = false);
 
     if (response.statusCode == 200) {
       Navigator.pop(context, true);
     } else {
-      print("POST ERROR: $responseBody"); // <- здесь смотри текст ошибки
+      print("POST ERROR: $responseBody");
     }
   }
 
